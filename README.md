@@ -38,13 +38,17 @@ pio run -t upload
 
 ```cpp
 #define NUM_LEDS 37         // LEDの個数 (Hexボードは37個)
-#define LED_BRIGHTNESS 150  // 明るさ (0〜255)
-const unsigned long KEEP_ALIVE_MS = 30000; // 点灯時間 (ミリ秒)
+#define LED_BRIGHTNESS 170  // 明るさ (0〜255)
+const unsigned long KEEP_ALIVE_MS = 10000; // 点灯時間 (ミリ秒)
 ```
 
 ## 省電力運用について
 本プログラムは **Light Sleep** を使用しています。
 これは Deep Sleep よりも若干消費電力は高いですが、PIR Hat への 3.3V 給電能力を維持し、センサー検知による「ウェイクアップ」を確実にするためです。
+
+さらに、以下の最適化を行っています：
+*   **画面OFF**: 動作中も画面（バックライト）を消灯
+*   **デバイス無効化**: Wi-Fi, Bluetooth, スピーカー, シリアル通信を停止
 
 - **動作時**: 炎エフェクト表示 (高負荷)
 - **待機時**: 画面OFF + CPU停止 + センサー監視のみ (中負荷)

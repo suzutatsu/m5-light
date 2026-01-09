@@ -1,14 +1,15 @@
 #include <M5Unified.h>
 #include <FastLED.h>
+#include <WiFi.h>
 
 // 設定
 #define PIR_PIN 36          // M5StickC Plus2 HATコネクタ (PIR Hat)
 #define LED_PIN 32          // Grove Port A (RGB LED Unit)
 #define NUM_LEDS 37         // M5Stack RGB LED Board (Hex)
-#define LED_BRIGHTNESS 150  // 明るさ設定 (最大255)
+#define LED_BRIGHTNESS 170  // 明るさ設定 (最大255)
 
 // 定数
-const unsigned long KEEP_ALIVE_MS = 30000; // 点灯時間 (30秒)
+const unsigned long KEEP_ALIVE_MS = 10000; // 点灯時間 (10秒)
 
 // グローバルオブジェクト
 CRGB leds[NUM_LEDS];
@@ -16,9 +17,20 @@ unsigned long lastTriggerTime = 0;
 
 void setup() {
     auto cfg = M5.config();
+    // 省電力のため不要なデバイスを無効化
+    cfg.internal_spk = false; // スピーカー無効
+    cfg.serial_baudrate = 0;  // シリアル通信無効
     M5.begin(cfg);
+
+    // Wi-Fi / Bluetooth を明示的に無効化
+    WiFi.mode(WIFI_OFF);
+    btStop();
+
     // Grove/HATへの5V出力(ExtOutput)を有効化
     M5.Power.setExtOutput(true);
+
+    // 画面の輝度を0にして消費電力を削減
+    M5.Display.setBrightness(0);
 
     // ピンモード設定
     pinMode(PIR_PIN, INPUT);
@@ -28,18 +40,14 @@ void setup() {
     FastLED.setBrightness(LED_BRIGHTNESS);
     FastLED.clear();
     FastLED.show();
-
-    M5.Display.setTextSize(2);
     
     // 起動要因のチェック
     esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
     if (wakeup_reason == ESP_SLEEP_WAKEUP_GPIO) {
         // PIRによる起動
-        M5.Display.println("Wakeup: PIR");
         lastTriggerTime = millis();
     } else {
         // 電源ONによる起動
-        M5.Display.println("Power ON");
         // 初回起動時も少し待機してから動作開始
         lastTriggerTime = millis(); 
     }
@@ -56,18 +64,20 @@ void loop() {
     // タイムアウト判定
     if (millis() - lastTriggerTime < KEEP_ALIVE_MS) {
         // 動作中: 炎のようなエフェクトを表示
-        M5.Display.setCursor(0, 40);
-        M5.Display.print("Active...");
 
         uint32_t t = millis() / 3; // 時間ベースの変動値
+        
         for(int i = 0; i < NUM_LEDS; i++) {
             // パーリンノイズを使って滑らかなゆらぎを作る
             // i を掛けることでピクセルごとに個体差を出す
             uint8_t noiseVal = inoise8(i * 30, t); 
+            
             // ノイズを明るさに変換 (80〜255) - 真っ暗にならないように
             uint8_t bri = map(noiseVal, 0, 255, 80, 255);
+            
             // ノイズを色相に変換 (赤〜オレンジ〜黄色)
             uint8_t hue = map(noiseVal, 0, 255, 0, 35);
+
             leds[i] = CHSV(hue, 255, bri);
         }
         FastLED.show();
@@ -79,9 +89,6 @@ void loop() {
         FastLED.clear();
         FastLED.show();
 
-        M5.Display.fillScreen(BLACK);
-        M5.Display.setCursor(0, 40);
-        M5.Display.println("Light Sleep...");
         delay(100); 
 
         // Grove/Hat(センサー)への電源供給は維持する
@@ -104,10 +111,7 @@ void loop() {
         // 誤検知ループを防ぐためWakeupソースを解除
         gpio_wakeup_disable((gpio_num_t)PIR_PIN);
 
-        M5.Display.wakeup();
-        M5.Display.fillScreen(BLACK);
-        M5.Display.setCursor(0, 0);
-        M5.Display.println("Wakeup!");
+        M5.Display.wakeup(); // 必要に応じて復帰
         lastTriggerTime = millis();
     }
 }
