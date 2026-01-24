@@ -15,6 +15,12 @@ const unsigned long KEEP_ALIVE_MS = 10000; // 点灯時間 (10秒)
 CRGB leds[NUM_LEDS];
 unsigned long lastTriggerTime = 0;
 
+enum ColorMode {
+    FIRE,
+    SOUL_FIRE
+};
+ColorMode currentMode = FIRE;
+
 void setup() {
     auto cfg = M5.config();
     // 省電力のため不要なデバイスを無効化
@@ -61,6 +67,12 @@ void loop() {
         lastTriggerTime = millis(); // 動きがあればタイマーリセット
     }
 
+    // ボタンの状態確認 (モード切り替え)
+    if (M5.BtnA.wasPressed()) {
+        currentMode = (currentMode == FIRE) ? SOUL_FIRE : FIRE;
+        lastTriggerTime = millis(); // 切り替え時も点灯時間を延長
+    }
+
     // タイムアウト判定
     if (millis() - lastTriggerTime < KEEP_ALIVE_MS) {
         // 動作中: 炎のようなエフェクトを表示
@@ -75,10 +87,19 @@ void loop() {
             // ノイズを明るさに変換 (80〜255) - 真っ暗にならないように
             uint8_t bri = map(noiseVal, 0, 255, 80, 255);
             
-            // ノイズを色相に変換 (赤〜オレンジ〜黄色)
-            uint8_t hue = map(noiseVal, 0, 255, 0, 35);
+            // ノイズを彩度に変換 (180〜255) - 明るい部分は少し白っぽく（低彩度）にする
+            uint8_t sat = map(noiseVal, 0, 255, 255, 180);
 
-            leds[i] = CHSV(hue, 255, bri);
+            uint8_t hue;
+            if (currentMode == SOUL_FIRE) {
+                // 青〜水色 (Minecraft 魂のランタン風)
+                hue = map(noiseVal, 0, 255, 120, 150);
+            } else {
+                // 温かいオレンジ〜黄色 (Minecraft ランタン風)
+                hue = map(noiseVal, 0, 255, 10, 30);
+            }
+
+            leds[i] = CHSV(hue, sat, bri);
         }
         FastLED.show();
         delay(20); // スムーズなアニメーションのための更新頻度
