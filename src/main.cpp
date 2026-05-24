@@ -9,13 +9,14 @@
 #define LED_BRIGHTNESS 170  // 明るさ設定 (最大255)
 
 // 定数
-const unsigned long KEEP_ALIVE_MS = 10000; // 点灯時間 (10秒)
-const int FADE_DURATION_MS = 500;          // フェードイン・アウトの時間
+const unsigned long KEEP_ALIVE_MS = 10000;    // 点灯時間 (10秒)
+const int FADE_DURATION_MS = 500;             // フェードイン・アウトの時間
+const unsigned long SCREEN_DURATION_MS = 15000; // 画面表示時間 (15秒)
 
 // グローバルオブジェクト
 CRGB leds[NUM_LEDS];
 unsigned long lastTriggerTime = 0;
-unsigned long screenOnEndTime = 0;
+unsigned long screenOnStartTime = 0;
 bool screenIsActive = false;
 bool ledsCleared = true; // LED消灯済みフラグ
 
@@ -79,10 +80,12 @@ void setRtcFromCompileTime() {
 }
 
 // 動作時間内 (JST 21:00 〜 翌朝 5:00) か判定する関数
+bool isWithinActiveHours(int hour) {
+    return (hour >= 21 || hour < 5);
+}
 bool isWithinActiveHours() {
     auto dt = M5.Rtc.getDateTime();
-    int hour = dt.time.hours;
-    return (hour >= 21 || hour < 5);
+    return isWithinActiveHours(dt.time.hours);
 }
 
 // 炎エフェクトの計算と表示
@@ -215,7 +218,7 @@ void setup() {
         
         // ボタンで起きた場合は、画面表示をアクティブにする
         if (digitalRead(37) == LOW || digitalRead(39) == LOW) {
-            screenOnEndTime = millis() + 15000;
+            screenOnStartTime = millis();
             screenIsActive = true;
             M5.Display.setBrightness(80);
         }
@@ -226,7 +229,7 @@ void setup() {
         }
     } else {
         // 通常電源オン時は、確認用に15秒画面を表示し、動作時間内ならLEDも点ける
-        screenOnEndTime = millis() + 15000;
+        screenOnStartTime = millis();
         screenIsActive = true;
         M5.Display.setBrightness(80);
         
@@ -240,14 +243,14 @@ void loop() {
     M5.update();
 
     auto dt = M5.Rtc.getDateTime();
-    bool activeHours = (dt.time.hours >= 21 || dt.time.hours < 5);
+    bool activeHours = isWithinActiveHours(dt.time.hours);
 
     // ボタン押下検出
     bool btnAPressed = M5.BtnA.wasPressed() || M5.BtnA.isPressed();
     bool btnBPressed = M5.BtnB.wasPressed() || M5.BtnB.isPressed();
 
     if (btnAPressed || btnBPressed) {
-        screenOnEndTime = millis() + 15000;
+        screenOnStartTime = millis();
         if (!screenIsActive) {
             screenIsActive = true;
             M5.Display.setBrightness(80);
@@ -273,7 +276,7 @@ void loop() {
     bool ledActive = (millis() - lastTriggerTime < KEEP_ALIVE_MS) && activeHours;
     
     // 画面点灯判定
-    bool screenActive = (millis() < screenOnEndTime);
+    bool screenActive = screenIsActive && (millis() - screenOnStartTime < SCREEN_DURATION_MS);
 
     // 1. LED制御
     if (ledActive) {
@@ -357,14 +360,14 @@ void loop() {
         // 起床要因のチェックと処理
         if (digitalRead(37) == LOW || digitalRead(39) == LOW) {
             // ボタン押下で起きた場合
-            screenOnEndTime = millis() + 15000;
+            screenOnStartTime = millis();
             screenIsActive = true;
             M5.Display.wakeup();
             M5.Display.setBrightness(80);
         }
 
         auto wakeDt = M5.Rtc.getDateTime();
-        bool wakeActiveHours = (wakeDt.time.hours >= 21 || wakeDt.time.hours < 5);
+        bool wakeActiveHours = isWithinActiveHours(wakeDt.time.hours);
         if (digitalRead(PIR_PIN) == HIGH && wakeActiveHours) {
             // 動作時間内に動き検知で起きた場合
             lastTriggerTime = millis();
