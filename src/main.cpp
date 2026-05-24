@@ -224,7 +224,7 @@ void setup() {
         }
         
         // 動作時間内で、かつPIRがHIGHならLED起動
-        if (digitalRead(PIR_PIN) == HIGH && isWithinActiveHours(dt.time.hours)) {
+        if (digitalRead(PIR_PIN) == HIGH && isWithinActiveHours()) {
             lastTriggerTime = millis();
         }
     } else {
